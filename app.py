@@ -1,3 +1,4 @@
+import json
 import os
 
 from flask import Flask, request
@@ -9,21 +10,31 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 
-def build_query(fd, query):
-    query_items = query.split('|')
+def build_query(fd, cmd, value):
     res = map(lambda v: v.strip(), fd)
-    for item in query_items:
-        split_item = item.split(":")
-        cmd = split_item[0]
-        if cmd == filter:
-            arg = split_item[1]
-            res = filter(lambda v, txt = arg: txt in v,res)
+    if cmd == "filter":
+        res = filter(lambda v, txt=value: txt in v, res)
+    if cmd == "map":
+        arg = int(value)
+        res = map(lambda v, idx=arg: v.split(" ")[idx], res)
+    if cmd == "unique":
+        res = set(res)
+    if cmd == "sort":
+        reverse = value == "desc"
+        res = sorted(res, reverse=reverse)
+    if cmd == "limit":
+        arg = int(value)
+        res = list(res)[:arg]
+    return res
 
-
-@app.route("/perform_query")
+@app.route("/perform_query/")
 def perform_query():
     try:
-        query = request.args["query"]
+        # data = json.loads(request.data)
+        cmd1 = request.args["cmd1"]
+        cmd2 = request.args["cmd2"]
+        value1 = request.args["value1"]
+        value2 = request.args["value2"]
         file_name = request.args["file_name"]
     except KeyError:
         raise BadRequest
@@ -33,7 +44,8 @@ def perform_query():
         return BadRequest(description=f"{file_name} was not found")
 
     with open(file_path) as fd:
-        res = build_query(fd, query)
+        res = build_query(fd, cmd1, value1)
+        res = build_query(res, cmd2, value2)
         content = '\n'.join(res)
-        print(content)
+
     return app.response_class(content, content_type="text/plain")
